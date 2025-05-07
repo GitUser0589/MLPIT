@@ -2,9 +2,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
 
 class MembershipPredictionGUI:
     def __init__(self, master):
@@ -29,7 +29,7 @@ class MembershipPredictionGUI:
         self.training_results_label = tk.Label(master, text="Training Results")
         self.training_results_label.grid(row=3, column=0, padx=5, pady=5, sticky="w")
 
-        self.results_text = tk.Text(master, height=5, width=60)
+        self.results_text = tk.Text(master, height=10, width=60)
         self.results_text.grid(row=4, column=0, columnspan=3, padx=5, pady=5)
         self.results_text.config(state=tk.DISABLED)
 
@@ -82,38 +82,40 @@ class MembershipPredictionGUI:
                 return
 
             X = df.drop(columns=["ID", "Avails_Membership"])
-            y = df["Avails_Membership"].map({"Yes": 1, "No": 0})
+            y = df["Avails_Membership"]
 
-            # Ensure all features are present (Age, Job, Income)
-            expected_columns = ["Age", "Job", "Income"]
+            expected_columns = ["Age (25+)", "Has_Job", "Income (>$1000)"]
             for col in expected_columns:
                 if col not in X.columns:
                     self.update_results(f"CSV file must contain '{col}' column.")
                     return
-
-            # Convert Yes/No to binary for training
-            X_processed = X.copy()
-            for col in ["Age", "Job", "Income"]:
-                if X_processed[col].dtype == 'object':
-                    X_processed[col] = X_processed[col].map({"Yes": 1, "No": 0})
-                elif X_processed[col].dtype != 'int64' and X_processed[col].dtype != 'float64':
-                    self.update_results(f"Column '{col}' should contain 'Yes'/'No' or numeric data.")
+                if not set(X[col].unique()).issubset({0, 1}):
+                    self.update_results(f"Column '{col}' must contain only 0 and 1.")
                     return
 
-            X_train, X_test, y_train, y_test = train_test_split(X_processed, y, test_size=0.2, random_state=42)
+            if not set(y.unique()).issubset({0, 1}):
+                self.update_results("Target column 'Avails_Membership' must contain only 0 and 1.")
+                return
 
-            # Change to RandomForestRegressor
-            self.model = RandomForestRegressor(n_estimators=100, random_state=42)
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+            self.model = LogisticRegression()
             self.model.fit(X_train, y_train)
 
-            # Predict and evaluate
             y_pred = self.model.predict(X_test)
-            mse = mean_squared_error(y_test, y_pred)
-            r2 = r2_score(y_test, y_pred)
+
+            acc = accuracy_score(y_test, y_pred)
+            prec = precision_score(y_test, y_pred)
+            rec = recall_score(y_test, y_pred)
+            f1 = f1_score(y_test, y_pred)
+            report = classification_report(y_test, y_pred)
 
             results = f"Model trained successfully!\n"
-            results += f"Mean Squared Error (MSE): {mse:.4f}\n"
-            results += f"R-squared: {r2:.4f}\n"
+            results += f"Accuracy: {acc:.4f}\n"
+            results += f"Precision: {prec:.4f}\n"
+            results += f"Recall: {rec:.4f}\n"
+            results += f"F1 Score: {f1:.4f}\n\n"
+            results += "Classification Report:\n" + report
             self.update_results(results)
 
         except FileNotFoundError:
@@ -128,7 +130,7 @@ class MembershipPredictionGUI:
         self.results_text.config(state=tk.DISABLED)
 
     def yes_no_to_binary(self, value):
-        return 1 if value == "Yes" else 0
+        return 1 if value.strip().lower() == "yes" else 0
 
     def predict_membership(self):
         if self.model is None:
@@ -142,9 +144,10 @@ class MembershipPredictionGUI:
 
             input_data = np.array([[age, job, income]])
             prediction = self.model.predict(input_data)[0]
+            probability = self.model.predict_proba(input_data)[0][1]
 
-            result = "YES" if prediction >= 0.5 else "NO"
-            messagebox.showinfo("Prediction", f"Will avail membership? {result}\nPrediction score: {prediction:.2f}")
+            result = "YES" if prediction == 1 else "NO"
+            messagebox.showinfo("Prediction", f"Will avail membership? {result}\nPrediction probability: {probability:.2f}")
 
         except Exception as e:
             messagebox.showerror("Error", f"Something went wrong during prediction:\n{e}")
