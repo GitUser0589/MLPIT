@@ -2,10 +2,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
-
+from sklearn.metrics import mean_squared_error, r2_score
 
 class MembershipPredictionGUI:
     def __init__(self, master):
@@ -103,16 +102,18 @@ class MembershipPredictionGUI:
 
             X_train, X_test, y_train, y_test = train_test_split(X_processed, y, test_size=0.2, random_state=42)
 
-            self.model = LogisticRegression()
+            # Change to RandomForestRegressor
+            self.model = RandomForestRegressor(n_estimators=100, random_state=42)
             self.model.fit(X_train, y_train)
 
+            # Predict and evaluate
             y_pred = self.model.predict(X_test)
-            accuracy = accuracy_score(y_test, y_pred)
-            report = classification_report(y_test, y_pred, target_names=["No", "Yes"])
+            mse = mean_squared_error(y_test, y_pred)
+            r2 = r2_score(y_test, y_pred)
 
             results = f"Model trained successfully!\n"
-            results += f"Accuracy: {accuracy:.4f}\n"
-            results += f"Classification Report:\n{report}"
+            results += f"Mean Squared Error (MSE): {mse:.4f}\n"
+            results += f"R-squared: {r2:.4f}\n"
             self.update_results(results)
 
         except FileNotFoundError:
@@ -141,10 +142,9 @@ class MembershipPredictionGUI:
 
             input_data = np.array([[age, job, income]])
             prediction = self.model.predict(input_data)[0]
-            prob = self.model.predict_proba(input_data)[0][1]
 
-            result = "YES" if prediction == 1 else "NO"
-            messagebox.showinfo("Prediction", f"Will avail membership? {result}\nProbability: {prob:.2f}")
+            result = "YES" if prediction >= 0.5 else "NO"
+            messagebox.showinfo("Prediction", f"Will avail membership? {result}\nPrediction score: {prediction:.2f}")
 
         except Exception as e:
             messagebox.showerror("Error", f"Something went wrong during prediction:\n{e}")
